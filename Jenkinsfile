@@ -38,12 +38,11 @@ podTemplate(label: label, containers: [
                         Updating canary environment...
                         -------------------------------
                         '''
+                        echo 'Deploying service...'
+                        kubeCall('k8s/services/tomcat-service.yml', 'https://kubernetes.default.svc.cluster.local/api/v1/namespaces/production/services')
+
                         echo 'Deploying package...'
-                        sh '{ set +x; } 2> /dev/null; \
-                            curl -k -s \
-                            -H "Content-Type: application/yaml" \
-                            -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
-                            -X POST -d "$(cat k8s/canary/)" https://kubernetes.default.svc.cluster.local/apis/extensions/v1beta1/namespaces/production/deployments > /dev/null;'
+                        kubeCall('k8s/canary/tomcat-canary-deployment.yml', 'https://kubernetes.default.svc.cluster.local/apis/extensions/v1beta1/namespaces/production/deployments')
                         break
                     default:
                         echo '''
