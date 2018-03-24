@@ -44,6 +44,18 @@ podTemplate(label: label, containers: [
                         echo 'Deploying package...'
                         kubeCall('k8s/canary/tomcat-canary-deployment.yml', 'https://kubernetes.default.svc.cluster.local/apis/extensions/v1beta1/namespaces/production/deployments')
                         break
+                    case "master":
+                        echo '''
+                        ----------------------------------
+                        Updating production environment...
+                        ----------------------------------
+                        '''
+                        echo 'Deploying service...'
+                        kubeCall('k8s/services/tomcat-service.yml', 'https://kubernetes.default.svc.cluster.local/api/v1/namespaces/production/services')
+
+                        echo 'Deploying package...'
+                        kubeCall('k8s/production/tomcat-prod-deployment.yml', 'https://kubernetes.default.svc.cluster.local/apis/extensions/v1beta1/namespaces/production/deployments')
+                        break
                     default:
                         echo '''
                         ------------------------------------

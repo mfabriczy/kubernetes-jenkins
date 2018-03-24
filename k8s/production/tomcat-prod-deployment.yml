@@ -1,0 +1,19 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: tomcat-production
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: tomcat
+        env: production
+    spec:
+      containers:
+      - name: tomcat
+        image: tomcat:8.0-alpine
+        imagePullPolicy: Always
+        ports:
+        - name: tomcat
+          containerPort: 8080
