@@ -12,7 +12,7 @@ spec:
     spec:
       containers:
       - name: tomcat
-        image: tomcat:8.0-alpine
+        image: mfabriczy/tomcat-war-deploy:1.0
         imagePullPolicy: Always
         ports:
         - name: tomcat

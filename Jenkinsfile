@@ -1,13 +1,18 @@
 def label = "mypod-${UUID.randomUUID().toString()}"
 podTemplate(label: label, containers: [
-    containerTemplate(name: 'maven-checkstyle', image: 'maven:3.5.2-jdk-8-alpine', ttyEnabled: true, command: 'cat'),
-    containerTemplate(name: 'maven-build', image: 'maven:3.5.2-jdk-8-alpine', ttyEnabled: true, command: 'cat'),
-    containerTemplate(name: 'curl', image: 'byrnedo/alpine-curl', ttyEnabled: true, command: 'cat')
-  ]) {
+      containerTemplate(name: 'maven-checkstyle', image: 'maven:3.5.2-jdk-8-alpine', ttyEnabled: true, command: 'cat'),
+      containerTemplate(name: 'maven-build', image: 'maven:3.5.2-jdk-8-alpine', ttyEnabled: true, command: 'cat'),
+      containerTemplate(name: 'curl', image: 'byrnedo/alpine-curl', ttyEnabled: true, command: 'cat'),
+      containerTemplate(name: 'docker', image: 'docker:1.11', ttyEnabled: true, command: 'cat')],
+      volumes: [hostPathVolume(hostPath: '/var/run/docker.sock', mountPath: '/var/run/docker.sock')]) {
     node(label) {
-        stage('Checkstyle, build package') {
-            checkout scm
+        checkout scm
 
+        def username = 'mfabriczy'
+        def appName = 'tomcat-war-deploy'
+        def imageTag = "${username}/${appName}:${env.BRANCH_NAME}.${env.BUILD_NUMBER}"
+
+        stage('Checkstyle, build package') {
             parallel (
                 checkstyle: {
                     container('maven-checkstyle') {
@@ -29,6 +34,16 @@ podTemplate(label: label, containers: [
                 }
             )
         }
+
+        stage('Build and push Docker image') {
+            withDockerRegistry([credentialsId: 'docker-hub-credentials']) {
+                container('docker') {
+                    sh "docker build -t ${imageTag} ."
+                    sh "docker push ${imageTag}"
+                }
+            }
+        }
+
         stage ('Deploy package') {
             container('curl') {
                 switch (env.BRANCH_NAME) {
@@ -41,6 +56,8 @@ podTemplate(label: label, containers: [
                         echo 'Deploying service...'
                         kubeCall('k8s/services/tomcat-service.yml', 'https://kubernetes.default.svc.cluster.local/api/v1/namespaces/production/services')
 
+                        sh "sed -i 's#mfabriczy/tomcat-war-deploy:1.0#${imageTag}#' k8s/canary/tomcat-canary-deployment.yml"
+
                         echo 'Deploying package...'
                         kubeCall('k8s/canary/tomcat-canary-deployment.yml', 'https://kubernetes.default.svc.cluster.local/apis/extensions/v1beta1/namespaces/production/deployments')
                         break
@@ -52,6 +69,8 @@ podTemplate(label: label, containers: [
                         '''
                         echo 'Deploying service...'
                         kubeCall('k8s/services/tomcat-service.yml', 'https://kubernetes.default.svc.cluster.local/api/v1/namespaces/production/services')
+
+                        sh "sed -i 's#mfabriczy/tomcat-war-deploy:1.0#${imageTag}#' k8s/production/tomcat-prod-deployment.yml"
 
                         echo 'Deploying package...'
                         kubeCall('k8s/production/tomcat-prod-deployment.yml', 'https://kubernetes.default.svc.cluster.local/apis/extensions/v1beta1/namespaces/production/deployments')
@@ -69,6 +88,8 @@ podTemplate(label: label, containers: [
                         echo 'Deploying service...'
                         sh "sed -i 's/LoadBalancer/ClusterIP/' k8s/services/tomcat-service.yml"
                         kubeCall('k8s/services/tomcat-service.yml', 'https://kubernetes.default.svc.cluster.local/api/v1/namespaces/' + env.BRANCH_NAME + '/services')
+
+                        sh "sed -i 's#mfabriczy/tomcat-war-deploy:1.0#${imageTag}#' k8s/dev/tomcat-dev-deployment.yml"
 
                         echo 'Deploying package...'
                         kubeCall('k8s/dev/tomcat-dev-deployment.yml', 'https://kubernetes.default.svc.cluster.local/apis/extensions/v1beta1/namespaces/' + env.BRANCH_NAME + '/deployments')
