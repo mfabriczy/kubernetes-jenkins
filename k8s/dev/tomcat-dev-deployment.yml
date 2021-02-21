@@ -14,6 +14,10 @@ spec:
       - name: tomcat
         image: tomcat:8.0-alpine
         imagePullPolicy: Always
+        resources:
+          limits:
+            memory: "500Mi"
+            cpu: "500m"
         ports:
         - name: tomcat
           containerPort: 8080
