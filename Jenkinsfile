@@ -1,9 +1,9 @@
 def label = "mypod-${UUID.randomUUID().toString()}"
 podTemplate(label: label, containers: [
-      containerTemplate(name: 'maven-checkstyle', image: 'maven:3.5.2-jdk-8-alpine', ttyEnabled: true, command: 'cat'),
-      containerTemplate(name: 'maven-build', image: 'maven:3.5.2-jdk-8-alpine', ttyEnabled: true, command: 'cat'),
+      containerTemplate(name: 'maven-checkstyle', image: 'maven:3.6.1-jdk-8-alpine', ttyEnabled: true, command: 'cat'),
+      containerTemplate(name: 'maven-build', image: 'maven:3.6.1-jdk-8-alpine', ttyEnabled: true, command: 'cat'),
       containerTemplate(name: 'curl', image: 'byrnedo/alpine-curl', ttyEnabled: true, command: 'cat'),
-      containerTemplate(name: 'docker', image: 'docker:1.11', ttyEnabled: true, command: 'cat')],
+      containerTemplate(name: 'docker', image: 'docker:20.10.1', ttyEnabled: true, command: 'cat')],
       volumes: [hostPathVolume(hostPath: '/var/run/docker.sock', mountPath: '/var/run/docker.sock')]) {
     node(label) {
         checkout scm
@@ -36,9 +36,10 @@ podTemplate(label: label, containers: [
         }
 
         stage('Build and push Docker image') {
-            withDockerRegistry([credentialsId: 'docker-hub-credentials']) {
+            withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
                 container('docker') {
                     sh "docker build -t ${imageTag} ."
+                    sh 'docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD'
                     sh "docker push ${imageTag}"
                 }
             }
@@ -59,7 +60,7 @@ podTemplate(label: label, containers: [
                         sh "sed -i 's#mfabriczy/tomcat-war-deploy:1.0#${imageTag}#' k8s/canary/tomcat-canary-deployment.yml"
 
                         echo 'Deploying package...'
-                        kubeCall('k8s/canary/tomcat-canary-deployment.yml', 'https://kubernetes.default.svc.cluster.local/apis/extensions/v1beta1/namespaces/production/deployments')
+                        kubeCall('k8s/canary/tomcat-canary-deployment.yml', 'https://kubernetes.default.svc.cluster.local/apis/apps/v1/namespaces/production/deployments')
                         break
                     case "master":
                         echo '''
@@ -73,7 +74,7 @@ podTemplate(label: label, containers: [
                         sh "sed -i 's#mfabriczy/tomcat-war-deploy:1.0#${imageTag}#' k8s/production/tomcat-prod-deployment.yml"
 
                         echo 'Deploying package...'
-                        kubeCall('k8s/production/tomcat-prod-deployment.yml', 'https://kubernetes.default.svc.cluster.local/apis/extensions/v1beta1/namespaces/production/deployments')
+                        kubeCall('k8s/production/tomcat-prod-deployment.yml', 'https://kubernetes.default.svc.cluster.local/apis/apps/v1/namespaces/production/deployments')
                         break
                     default:
                         echo '''
@@ -92,7 +93,7 @@ podTemplate(label: label, containers: [
                         sh "sed -i 's#mfabriczy/tomcat-war-deploy:1.0#${imageTag}#' k8s/dev/tomcat-dev-deployment.yml"
 
                         echo 'Deploying package...'
-                        kubeCall('k8s/dev/tomcat-dev-deployment.yml', 'https://kubernetes.default.svc.cluster.local/apis/extensions/v1beta1/namespaces/' + env.BRANCH_NAME + '/deployments')
+                        kubeCall('k8s/dev/tomcat-dev-deployment.yml', 'https://kubernetes.default.svc.cluster.local/apis/apps/v1/namespaces/' + env.BRANCH_NAME + '/deployments')
 
                         echo "Run `kubectl proxy`. You can access the environment via http://localhost:<port>/api/v1/proxy/namespaces/${env.BRANCH_NAME}/services/tomcat-service:8080/"
                 }
@@ -105,6 +106,6 @@ def kubeCall(path, endpoint) {
     sh '{ set +x; } 2> /dev/null; \
         curl -k -s \
         -H "Content-Type: application/yaml" \
-        -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+        -H "Authorization: Bearer $(cat /run/secrets/kubernetes.io/serviceaccount/token)" \
         -X POST -d "$(cat ' + path + ')" ' + endpoint + ' > /dev/null;'
 }

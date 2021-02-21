@@ -5,9 +5,20 @@ This project builds a war and deploys it into a Kubernetes Cluster using the [Pi
 Deploys and updates a canary, production and development environment when pushing code through the Pipeline Multibranch job.
 
 ## Setup
+
+Add the Jenkins repository:
+```
+helm repo add jenkins https://charts.jenkins.io
+```
+
+In your Kubernetes cluster create a namespace called "jenkins":
+```
+kubectl create ns jenkins
+```
+
 Start a Jenkins instance using [Helm](https://github.com/kubernetes/helm):
 ```
-helm install --name jenkins --values=jenkins-override-values.yml --namespace jenkins stable/jenkins
+helm install jenkins --values=jenkins-override-values.yml --namespace jenkins jenkins/jenkins
 ```
 
 In your Kubernetes cluster create a namespace called "production":
